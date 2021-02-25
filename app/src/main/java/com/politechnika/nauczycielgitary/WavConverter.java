@@ -26,7 +26,7 @@ public class WavConverter {
             writeShort(output, (short) 1); // audio format (1 = PCM)
             writeShort(output, (short) 1); // number of channels
             writeInt(output, 44100); // sample rate
-            writeInt(output, AudioService.BUFFER_ELEMENTS * 2); // byte rate
+            writeInt(output, AudioSettings.BUFFER_ELEMENTS * 2); // byte rate
             writeShort(output, (short) 2); // block align
             writeShort(output, (short) 16); // bits per sample
             writeString(output, "data"); // subchunk 2 id

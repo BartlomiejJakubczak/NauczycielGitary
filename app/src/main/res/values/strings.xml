@@ -3,4 +3,5 @@
     <string name="button_start_recording_name">Start recording</string>
     <string name="button_stop_recording_name">Stop recording</string>
     <string name="button_play_recording_name">Play recording</string>
+    <string name="button_classify_name">Classify</string>
 </resources>

@@ -7,8 +7,10 @@ import androidx.core.content.ContextCompat;
 
 import android.Manifest;
 import android.content.pm.PackageManager;
+import android.content.res.AssetFileDescriptor;
 import android.os.Bundle;
 import android.os.Environment;
+import android.os.Handler;
 import android.util.Log;
 import android.widget.Toast;
 
@@ -18,17 +20,25 @@ import org.greenrobot.eventbus.EventBus;
 import org.greenrobot.eventbus.Subscribe;
 import org.greenrobot.eventbus.ThreadMode;
 
+import java.io.File;
+import java.io.FileInputStream;
+import java.io.IOException;
+import java.nio.MappedByteBuffer;
+import java.nio.channels.FileChannel;
+
 public class MainActivity extends AppCompatActivity implements ThreadCompletionListener {
 
     private static final String LOG_TAG = MainActivity.class.getSimpleName();
-    private static final String FILE_PATH_TO_SD_CARD = Environment.getExternalStorageDirectory().getPath();
+    private static final String FILE_PATH_TO_WAVE_FILE = Environment.getExternalStorageDirectory().getPath() + "/sample.wav";
     private static final int REQUEST_ALL_APP_PERMISSIONS = 200;
     private static final String audioPermission = Manifest.permission.RECORD_AUDIO;
     private static final String dataWritePermission = Manifest.permission.WRITE_EXTERNAL_STORAGE;
     private static final String dataReadPermission = Manifest.permission.READ_EXTERNAL_STORAGE;
     private final String [] permissions = {audioPermission, dataWritePermission, dataReadPermission};
-    private AudioService audioService;
+
+    private AudioThread audioThread;
     private SoundPoolPlayer soundPoolPlayer;
+    private TensorFlowInterpreter tensorFlowInterpreter;
 
     private ActivityMainBinding binding;
 
@@ -43,9 +53,22 @@ public class MainActivity extends AppCompatActivity implements ThreadCompletionL
         super.onCreate(savedInstanceState);
         checkPermissions();
         setUpAudioTools();
+        tensorFlowInterpreter = new TensorFlowInterpreter(loadModelFile(), new LibrosaService(FILE_PATH_TO_WAVE_FILE));
         binding = ActivityMainBinding.inflate(getLayoutInflater());
         setContentView(binding.getRoot());
         setButtons();
+    }
+
+    private MappedByteBuffer loadModelFile() {
+        try {
+            AssetFileDescriptor fileDescriptor = getAssets().openFd("model.tflite");
+            FileInputStream inputStream = new FileInputStream(fileDescriptor.getFileDescriptor());
+            FileChannel fileChannel = inputStream.getChannel();
+            return fileChannel.map(FileChannel.MapMode.READ_ONLY, fileDescriptor.getStartOffset(), fileDescriptor.getDeclaredLength());
+        } catch (IOException e) {
+            e.printStackTrace();
+        }
+        return null;
     }
 
     private void setUpAudioTools() {
@@ -79,20 +102,23 @@ public class MainActivity extends AppCompatActivity implements ThreadCompletionL
 
     private void setButtons() {
         binding.buttonPlayRecording.setEnabled(false);
-        binding.buttonStopRecording.setEnabled(false);
+        binding.buttonClassify.setEnabled(false);
         binding.buttonStartRecording.setOnClickListener(v -> {
             soundPoolPlayer.resetPiResource();
-            audioService = new AudioService(FILE_PATH_TO_SD_CARD);
-            audioService.start();
+            audioThread = new AudioThread(Environment.getExternalStorageDirectory().getPath());
+            audioThread.start();
+            new Handler().postDelayed(() -> {
+                audioThread.stopRecording();
+            }, 2000);
             binding.buttonStartRecording.setEnabled(false);
-            binding.buttonStopRecording.setEnabled(true);
             binding.buttonPlayRecording.setEnabled(false);
-        });
-        binding.buttonStopRecording.setOnClickListener(v -> {
-            audioService.stopRecording();
+            binding.buttonClassify.setEnabled(false);
         });
         binding.buttonPlayRecording.setOnClickListener(v -> {
             soundPoolPlayer.playShortResource();
+        });
+        binding.buttonClassify.setOnClickListener(v -> {
+            tensorFlowInterpreter.classify();
         });
     }
 
@@ -102,10 +128,10 @@ public class MainActivity extends AppCompatActivity implements ThreadCompletionL
         Log.d(LOG_TAG, "Event received: " + event.getClass().getSimpleName());
         Toast.makeText(this, "Audio file saved.", Toast.LENGTH_SHORT).show();
         binding.buttonPlayRecording.setEnabled(true);
-        binding.buttonStopRecording.setEnabled(false);
         binding.buttonStartRecording.setEnabled(true);
+        binding.buttonClassify.setEnabled(true);
         if (!soundPoolPlayer.isResourceSet()) {
-            soundPoolPlayer.setPiResource(FILE_PATH_TO_SD_CARD + AudioService.WAVE_FILE);
+            soundPoolPlayer.setPiResource(FILE_PATH_TO_WAVE_FILE);
         }
     }
 

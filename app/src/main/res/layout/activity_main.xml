@@ -11,15 +11,6 @@
         android:layout_width="0dp"
         android:layout_height="wrap_content"
         android:text="@string/button_start_recording_name"
-        app:layout_constraintBottom_toTopOf="@+id/button_stop_recording"
-        app:layout_constraintEnd_toEndOf="parent"
-        app:layout_constraintStart_toStartOf="parent" />
-
-    <Button
-        android:id="@+id/button_stop_recording"
-        android:layout_width="0dp"
-        android:layout_height="wrap_content"
-        android:text="@string/button_stop_recording_name"
         app:layout_constraintBottom_toTopOf="@+id/button_play_recording"
         app:layout_constraintEnd_toEndOf="parent"
         app:layout_constraintStart_toStartOf="parent" />
@@ -29,6 +20,16 @@
         android:layout_width="0dp"
         android:layout_height="wrap_content"
         android:text="@string/button_play_recording_name"
+        app:layout_constraintBottom_toTopOf="@+id/button_classify"
+        app:layout_constraintEnd_toEndOf="parent"
+        app:layout_constraintHorizontal_bias="1.0"
+        app:layout_constraintStart_toStartOf="parent" />
+
+    <Button
+        android:id="@+id/button_classify"
+        android:layout_width="0dp"
+        android:layout_height="wrap_content"
+        android:text="@string/button_classify_name"
         app:layout_constraintBottom_toBottomOf="parent"
         app:layout_constraintEnd_toEndOf="parent"
         app:layout_constraintStart_toStartOf="parent" />

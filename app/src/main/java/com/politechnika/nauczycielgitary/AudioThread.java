@@ -11,23 +11,22 @@ import java.io.File;
 import java.io.FileOutputStream;
 import java.io.IOException;
 
-public class AudioService extends Thread {
+import static com.politechnika.nauczycielgitary.AudioSettings.BUFFER_ELEMENTS;
+import static com.politechnika.nauczycielgitary.AudioSettings.RECORDER_CHANNEL;
+import static com.politechnika.nauczycielgitary.AudioSettings.SAMPLE_RATE_IN_HZ;
 
-    private static final String LOG_TAG = AudioService.class.getSimpleName();
+public class AudioThread extends Thread {
 
-    private static final int SAMPLE_RATE_IN_HZ = 44100;
-    private static final int RECORDER_CHANNEL = AudioFormat.CHANNEL_IN_MONO;
-    private static final int RECORDER_AUDIO_ENCODING = AudioFormat.ENCODING_PCM_16BIT;
-    public static final int BUFFER_ELEMENTS = AudioRecord.getMinBufferSize(SAMPLE_RATE_IN_HZ,
-            RECORDER_CHANNEL, RECORDER_AUDIO_ENCODING);;
+    private static final String LOG_TAG = AudioThread.class.getSimpleName();
+
     private static final String RAW_FILE = "/sample.pcm";
-    public static final String WAVE_FILE = "/sample.wav";
+    private static final String WAVE_FILE = "/sample.wav";
     private boolean isRecording;
 
     private final String filePath;
     private AudioRecord recorder;
 
-    public AudioService(String filePath) {
+    public AudioThread(String filePath) {
         Log.d(LOG_TAG, "The given filePath: " + filePath);
         this.filePath = filePath;
         setRecorder();
