@@ -86,7 +86,6 @@ public class AudioThread extends Thread {
         FileOutputStream os = new FileOutputStream(filePath + RAW_FILE);
         Log.d(LOG_TAG, "The file used to write raw data has been opened..");
         while (isRecording) {
-            Log.d(LOG_TAG, "Writing some shit");
             byte[] byteData = new byte[BUFFER_ELEMENTS];
             recorder.read(byteData, 0, BUFFER_ELEMENTS);
             os.write(byteData, 0, BUFFER_ELEMENTS);
@@ -105,6 +104,7 @@ public class AudioThread extends Thread {
         File rawFile = new File(filePath + RAW_FILE);
         File wavFile = new File(filePath + WAVE_FILE);
         WavConverter.rawToWave(rawFile, wavFile);
+        rawFile.delete();
     }
 
 }

@@ -19,15 +19,14 @@ public class LibrosaService {
     public float[][] getMelSpectoGram() throws FileFormatNotSupportedException, IOException, WavFileException {
         return jLibrosa.generateMelSpectroGram(
                 getPCPVector(),
-                AudioSettings.SAMPLE_RATE_IN_HZ,
+                jLibrosa.getSampleRate(),
                 jLibrosa.getN_fft(),
                 jLibrosa.getN_mels(),
                 jLibrosa.getHop_length());
-//        return jLibrosa.generateMelSpectroGram(jLibrosa.loadAndRead(filePathToWaveFile, AudioSettings.SAMPLE_RATE_IN_HZ, -1));
     }
 
     public float[] getPCPVector() throws FileFormatNotSupportedException, IOException, WavFileException {
-        return jLibrosa.loadAndRead(filePathToWaveFile, AudioSettings.SAMPLE_RATE_IN_HZ, -1);
+        return jLibrosa.loadAndRead(filePathToWaveFile, -1, 2);
     }
 
 }

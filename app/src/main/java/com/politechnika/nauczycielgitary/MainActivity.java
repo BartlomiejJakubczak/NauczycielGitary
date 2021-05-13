@@ -7,7 +7,6 @@ import androidx.core.content.ContextCompat;
 
 import android.Manifest;
 import android.content.pm.PackageManager;
-import android.content.res.AssetFileDescriptor;
 import android.os.Bundle;
 import android.os.Environment;
 import android.os.Handler;
@@ -20,21 +19,16 @@ import org.greenrobot.eventbus.EventBus;
 import org.greenrobot.eventbus.Subscribe;
 import org.greenrobot.eventbus.ThreadMode;
 
-import java.io.File;
-import java.io.FileInputStream;
-import java.io.IOException;
-import java.nio.MappedByteBuffer;
-import java.nio.channels.FileChannel;
-
 public class MainActivity extends AppCompatActivity implements ThreadCompletionListener {
 
     private static final String LOG_TAG = MainActivity.class.getSimpleName();
     private static final String FILE_PATH_TO_WAVE_FILE = Environment.getExternalStorageDirectory().getPath() + "/sample.wav";
+    private static final String FILE_PATH_TO_TFLITE_MODEL= "my_samples_augmented.tflite";
     private static final int REQUEST_ALL_APP_PERMISSIONS = 200;
-    private static final String audioPermission = Manifest.permission.RECORD_AUDIO;
-    private static final String dataWritePermission = Manifest.permission.WRITE_EXTERNAL_STORAGE;
-    private static final String dataReadPermission = Manifest.permission.READ_EXTERNAL_STORAGE;
-    private final String [] permissions = {audioPermission, dataWritePermission, dataReadPermission};
+    private static final String AUDIO_PERMISSION = Manifest.permission.RECORD_AUDIO;
+    private static final String DATA_WRITE_PERMISSION = Manifest.permission.WRITE_EXTERNAL_STORAGE;
+    private static final String DATA_READ_PERMISSION = Manifest.permission.READ_EXTERNAL_STORAGE;
+    private final String [] permissions = {AUDIO_PERMISSION, DATA_WRITE_PERMISSION, DATA_READ_PERMISSION};
 
     private AudioThread audioThread;
     private SoundPoolPlayer soundPoolPlayer;
@@ -53,22 +47,13 @@ public class MainActivity extends AppCompatActivity implements ThreadCompletionL
         super.onCreate(savedInstanceState);
         checkPermissions();
         setUpAudioTools();
-        tensorFlowInterpreter = new TensorFlowInterpreter(loadModelFile(), new LibrosaService(FILE_PATH_TO_WAVE_FILE));
+        tensorFlowInterpreter = new TensorFlowInterpreter(
+                getApplicationContext(),
+                FILE_PATH_TO_TFLITE_MODEL,
+                new LibrosaService(FILE_PATH_TO_WAVE_FILE));
         binding = ActivityMainBinding.inflate(getLayoutInflater());
         setContentView(binding.getRoot());
-        setButtons();
-    }
-
-    private MappedByteBuffer loadModelFile() {
-        try {
-            AssetFileDescriptor fileDescriptor = getAssets().openFd("model.tflite");
-            FileInputStream inputStream = new FileInputStream(fileDescriptor.getFileDescriptor());
-            FileChannel fileChannel = inputStream.getChannel();
-            return fileChannel.map(FileChannel.MapMode.READ_ONLY, fileDescriptor.getStartOffset(), fileDescriptor.getDeclaredLength());
-        } catch (IOException e) {
-            e.printStackTrace();
-        }
-        return null;
+        setViews();
     }
 
     private void setUpAudioTools() {
@@ -76,9 +61,9 @@ public class MainActivity extends AppCompatActivity implements ThreadCompletionL
     }
 
     private void checkPermissions() {
-        int audioPermissionResult = ContextCompat.checkSelfPermission(getApplicationContext(), audioPermission);
-        int dataWriteResult = ContextCompat.checkSelfPermission(getApplicationContext(), audioPermission);
-        int dataReadResult = ContextCompat.checkSelfPermission(getApplicationContext(), audioPermission);
+        int audioPermissionResult = ContextCompat.checkSelfPermission(getApplicationContext(), AUDIO_PERMISSION);
+        int dataWriteResult = ContextCompat.checkSelfPermission(getApplicationContext(), AUDIO_PERMISSION);
+        int dataReadResult = ContextCompat.checkSelfPermission(getApplicationContext(), AUDIO_PERMISSION);
         if (audioPermissionResult + dataWriteResult + dataReadResult != PackageManager.PERMISSION_GRANTED) {
             Log.d(LOG_TAG, "Not all permissions are granted. Audio: " + audioPermissionResult + ", data write: " + dataWriteResult + ", data read: " + dataReadResult);
             ActivityCompat.requestPermissions(this, permissions, REQUEST_ALL_APP_PERMISSIONS);
@@ -100,25 +85,32 @@ public class MainActivity extends AppCompatActivity implements ThreadCompletionL
         if (!recordAudioPermission || !writeStoragePermission || !readStoragePermission) finish();
     }
 
-    private void setButtons() {
+    private void setViews() {
+        binding.textViewChord.setText("Press Start Recording.");
         binding.buttonPlayRecording.setEnabled(false);
         binding.buttonClassify.setEnabled(false);
         binding.buttonStartRecording.setOnClickListener(v -> {
-            soundPoolPlayer.resetPiResource();
-            audioThread = new AudioThread(Environment.getExternalStorageDirectory().getPath());
-            audioThread.start();
-            new Handler().postDelayed(() -> {
-                audioThread.stopRecording();
-            }, 2000);
-            binding.buttonStartRecording.setEnabled(false);
+            binding.textViewChord.setText("Wait...");
             binding.buttonPlayRecording.setEnabled(false);
             binding.buttonClassify.setEnabled(false);
+            binding.buttonStartRecording.setEnabled(false);
+            soundPoolPlayer.resetPiResource();
+            audioThread = new AudioThread(Environment.getExternalStorageDirectory().getPath());
+            new Handler().postDelayed(() -> {
+                binding.textViewChord.setText("Play!");
+                audioThread.start();
+            }, 2000);
+            new Handler().postDelayed(() -> {
+                binding.textViewChord.setText("Press Classify to find your chord.");
+                audioThread.stopRecording();
+            }, 4150); // TA WARTOSC DAJE RAMKE 128, 173
         });
         binding.buttonPlayRecording.setOnClickListener(v -> {
             soundPoolPlayer.playShortResource();
         });
         binding.buttonClassify.setOnClickListener(v -> {
-            tensorFlowInterpreter.classify();
+            String chord = tensorFlowInterpreter.classify();
+            binding.textViewChord.setText("Your chord is: " + chord);
         });
     }
 
@@ -145,6 +137,7 @@ public class MainActivity extends AppCompatActivity implements ThreadCompletionL
     protected void onDestroy() {
         super.onDestroy();
         soundPoolPlayer.release();
+        tensorFlowInterpreter.close();
     }
 
 }

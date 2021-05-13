@@ -4,81 +4,91 @@ import android.content.Context;
 
 import com.jlibrosa.audio.exception.FileFormatNotSupportedException;
 import com.jlibrosa.audio.wavFile.WavFileException;
-import com.politechnika.nauczycielgitary.ml.Model;
 
-import org.tensorflow.lite.DataType;
 import org.tensorflow.lite.Interpreter;
-import org.tensorflow.lite.support.tensorbuffer.TensorBuffer;
+import org.tensorflow.lite.support.common.FileUtil;
 
-import java.io.File;
 import java.io.IOException;
-import java.nio.Buffer;
 import java.nio.ByteBuffer;
-import java.nio.ByteOrder;
-import java.nio.FloatBuffer;
 import java.nio.MappedByteBuffer;
-import java.util.Arrays;
+import java.util.Map;
+import java.util.stream.Collectors;
 import java.util.stream.Stream;
+
+import ai.djl.ndarray.NDArray;
+import ai.djl.ndarray.NDManager;
 
 public class TensorFlowInterpreter {
 
-    private final Interpreter interpreter;
+    private Interpreter interpreter;
     private final LibrosaService librosaService;
+    private final NDManager NDmanager;
+    private Map chords;
 
-    public TensorFlowInterpreter(MappedByteBuffer modelFile, LibrosaService librosaService) {
+    public TensorFlowInterpreter(Context context, String pathToTfliteModel, LibrosaService librosaService) {
         this.librosaService = librosaService;
-        this.interpreter = new Interpreter(modelFile);
+        loadInterpreter(context, pathToTfliteModel);
+        NDmanager = NDManager.newBaseManager();
+        populateChordsMap();
     }
 
-    public void classify() {
+    private void populateChordsMap() {
+        chords = Stream.of(new Object [][] {
+                {0, "A"},
+                {1, "Am"},
+                {2, "B"},
+                {3, "C"},
+                {4, "D"},
+                {5, "Dm"},
+                {6, "E"},
+                {7, "Em"},
+                {8, "F"},
+                {9, "G"}
+        }).collect(Collectors.toMap(data -> (Integer) data[0], data -> (String) data[1]));
+    }
+
+    private void loadInterpreter(Context context, String pathToFIle) {
         try {
-            float[][] melSpectoGram = librosaService.getMelSpectoGram();
-            System.out.println("Size of melspectogram: " + melSpectoGram.length + ", " + melSpectoGram[0].length);
-            float[][] output = new float[1][10];
-            interpreter.run(toByteBuffer(melSpectoGram), output);
-            printOutput(output);
-        } catch (FileFormatNotSupportedException | IOException | WavFileException e) {
+            MappedByteBuffer tfliteModel = FileUtil.loadMappedFile(context, pathToFIle);
+            Interpreter.Options options = new Interpreter.Options();
+            options.setNumThreads(2);
+            interpreter = new Interpreter(tfliteModel, options);
+        } catch (IOException e) {
             e.printStackTrace();
         }
     }
 
-    private void printOutput(float[][] output) {
+    private String getPredictedChord(float[][] output) {
+        int greatestIndex = -1;
+        float greatestProbability = -1.0f;
         for (float[] floats : output) {
             for (int j = 0; j < output[0].length; j++) {
-                System.out.println("Probability at index: " + j + " is: " + floats[j]);
+                if (floats[j] > greatestProbability) {
+                    greatestIndex = j;
+                    greatestProbability = floats[j];
+                }
             }
         }
+        return (String) chords.get(greatestIndex);
     }
 
-    private ByteBuffer toByteBuffer(float[][] spectogram) {
-        float[][] croppedSpectogram = cropSpectogramToDesiredShape(spectogram);
-        ByteBuffer byteBuffer = ByteBuffer.allocateDirect(4*croppedSpectogram.length*croppedSpectogram[0].length);
-        byteBuffer.order(ByteOrder.nativeOrder());
-        float[] flattenedSpectogram = flattenTwoDimensionalArray(croppedSpectogram);
-        for (float value: flattenedSpectogram) {
-            byteBuffer.putFloat(value);
+    public String classify() {
+        try {
+            float[][] melSpectroGram = librosaService.getMelSpectoGram();
+            System.out.println(melSpectroGram.length + ", " + melSpectroGram[0].length);
+            float[][] output = new float[1][10];
+            NDArray input = NDmanager.create(melSpectroGram).reshape(1,128,173,1);
+            ByteBuffer buffer = input.toByteBuffer();
+            interpreter.run(buffer, output);
+            return getPredictedChord(output);
+        } catch (FileFormatNotSupportedException | IOException | WavFileException e) {
+            e.printStackTrace();
         }
-        return byteBuffer;
+        return null;
     }
 
-    private float[][] cropSpectogramToDesiredShape(float[][] spectogram) {
-        float[][] croppedSpectogram = new float[128][87];
-        for (int i = 0; i < 128; i++) {
-            System.arraycopy(spectogram[i], 0, croppedSpectogram[i], 0, 87);
-        }
-        return croppedSpectogram;
-    }
-
-    private float[] flattenTwoDimensionalArray(float[][] twoDArray) {
-        float[] array = new float[twoDArray.length*twoDArray[0].length];
-        for (int i = 0; i < twoDArray.length; i++) {
-            float[] row = twoDArray[i];
-            for (int j = 0; j < row.length; j++) {
-                float value = twoDArray[i][j];
-                array[i*row.length+j] = value;
-            }
-        }
-        return array;
+    public void close() {
+        interpreter.close();
     }
 
 }
